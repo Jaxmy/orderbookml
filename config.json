@@ -1,0 +1,23 @@
+{
+  "symbol": "ETHUSDC",
+  "ws_url": "wss://stream.binance.com:443/ws/ethusdc@depth20",
+  "rest_url": "https://api.binance.com/api/v3",
+  "rpc_env": "ETH_RPC_URL",
+  "rpc_default": "https://eth.drpc.org",
+  "chain_id": 1,
+  "factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+  "quoter": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+  "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "fee": 500,
+  "start": "2026-10-10T00:00:00+00:00",
+  "duration_seconds": 21600,
+  "sizes": ["0.05", "0.5", "2"],
+  "cex_fee_bps": "10",
+  "gas_units": 200000,
+  "priority_fee_gwei": "1",
+  "max_cex_age": 3,
+  "max_block_age": 30,
+  "data_cap_bytes": 1073741824,
+  "case_rules": ["first_size_ranking_change_else_first", "first_fee_ranking_change_else_first", "first_rejection_else_labelled_stress"]
+}

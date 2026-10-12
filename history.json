@@ -1,0 +1,15 @@
+{
+  "venue": "bybit", "symbol": "ETHUSDC", "market": "spot",
+  "dates": ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07"],
+  "train_end": "2026-09-05T00:00:00+00:00",
+  "validation_end": "2026-09-06T00:00:00+00:00",
+  "test_end": "2026-09-08T00:00:00+00:00",
+  "storage_cap_bytes": 5000000000,
+  "archive_cap_bytes": 1000000000,
+  "assumed_feed_latency_ms": 250,
+  "label_horizon_seconds": 60,
+  "decision_step_seconds": 10,
+  "max_book_age_seconds": 3,
+  "fee_bps": 10,
+  "notes": "Dates and splits fixed before inspecting returns or fitting. Exchange timestamps plus assumed delay; not measured local receipt times. Raw ZIP plus normalized books and derived research files counted together."
+}

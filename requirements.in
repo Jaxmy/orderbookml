@@ -1,0 +1,14 @@
+numpy
+pandas
+pyarrow
+scikit-learn
+web3
+websockets
+streamlit
+plotly
+pytest
+psutil
+fastapi
+uvicorn
+sqlalchemy
+psycopg[binary]

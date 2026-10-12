@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: research
+      POSTGRES_USER: researcher
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a local database password}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U researcher -d research"]
+      interval: 5s
+      retries: 10
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://researcher:${POSTGRES_PASSWORD}@db/research
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["./data:/app/data"]
+  worker:
+    build: .
+    command: [python, worker.py, --seconds, "21600"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://researcher:${POSTGRES_PASSWORD}@db/research
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes: ["./data:/app/data", "./logs:/app/logs"]
+  dashboard:
+    build: .
+    command: [python, -m, streamlit, run, market_app.py, --server.address=0.0.0.0, --server.port=8502]
+    environment:
+      DATABASE_URL: postgresql+psycopg://researcher:${POSTGRES_PASSWORD}@db/research
+    ports: ["127.0.0.1:8502:8502"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes: ["./data:/app/data"]

@@ -1,0 +1,12 @@
+.venv/
+.runtime/
+__pycache__/
+.pytest_cache/
+.env
+.tmp/
+.pip-cache/
+.archive/
+data/
+artifacts/
+logs/
+reports/generated/
