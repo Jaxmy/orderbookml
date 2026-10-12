@@ -1,156 +1,158 @@
 # CEX / DEX Order Execution Research Engine
 
-复盘历史市场，并在相同资金、费用和时间约束下，比较一笔买卖订单的执行方案。系统将中心化交易所的盘口与成交、Uniswap V3 的历史池状态、机器学习预测和执行求解器接到同一条研究流程中；参数输入和结果查看都在 Streamlit 看板完成。
+[**English**](README.md) | [简体中文](README.zh-CN.md)
+
+Review historical markets and compare execution plans for an order under the same budget, fees, and time constraints. The engine brings centralized-exchange books and trades, Uniswap V3 pool states, machine-learning estimates, and execution solvers into one research workflow. All parameters and results are handled in the Streamlit dashboard.
 
 ![Project status](https://img.shields.io/badge/status-P5%20in%20progress-orange) ![Python](https://img.shields.io/badge/Python-3.14-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
-> 当前范围是本地研究和纸面执行。程序不签名、不发送真实订单，也没有证明可盈利的策略。项目沿用目标仓库已有的 MIT 许可证，详见 [LICENSE](LICENSE)。
+> This project is for local research and paper execution. It does not sign or submit live orders, and it has not established a profitable strategy. The project uses the MIT license already present in the target repository; see [LICENSE](LICENSE).
 
-## 目录
+## Contents
 
-- [项目提供什么](#项目提供什么)
-- [组件、技术与限制](#组件技术与限制)
-- [数据来源和覆盖范围](#数据来源和覆盖范围)
-- [安装](#安装)
-- [使用示例](#使用示例)
-- [当前进度与下一步](#当前进度与下一步)
-- [工程阅读入口](#工程阅读入口)
-- [开发与贡献](#开发与贡献)
-- [许可证](#许可证)
+- [What the project does](#what-the-project-does)
+- [Components, technology, and limitations](#components-technology-and-limitations)
+- [Data sources and coverage](#data-sources-and-coverage)
+- [Installation](#installation)
+- [Example workflow](#example-workflow)
+- [Current progress and next steps](#current-progress-and-next-steps)
+- [Engineering references](#engineering-references)
+- [Development and contribution](#development-and-contribution)
+- [License](#license)
 
-## 项目提供什么
+## What the project does
 
-输入市场和时间窗口、币对、方向、订单数量或预算，以及费用、资金、延迟和执行期限；系统重建可用历史盘口，计算主动成交成本，比较静态场所分配、限价单情景或动态执行方案，并保存可复查的实验报告。
+Provide a market and time window, trading pair, side, order size or budget, and constraints such as fees, balances, latency, and deadline. The system reconstructs available historical books, calculates aggressive execution costs, compares static venue allocation, limit-order scenarios, or dynamic execution plans, and saves a reproducible experiment report.
 
-固定的是研究引擎和信息边界。市场数据、日期、订单和费用由每次实验决定。历史行情必须来自适配器实际支持的来源；如果某天的数据无法获得，任务会报告原因，不用缺失数据补造结果。
+The research engine and its information boundary are fixed; market data, dates, orders, and fees are supplied for each experiment. Historical data must come from a supported adapter. If a source cannot provide the requested date, the run reports why instead of fabricating missing observations.
 
-## 组件、技术与限制
+## Components, technology, and limitations
 
-### 看板和实验服务
+### Dashboard and experiment service
 
-**功能：**提交参数、运行和取消实验、查看进度、读取历史、复跑相同设置、下载结果；也可导入自己的成交记录。
+**Purpose:** Enter parameters, start or cancel experiments, follow progress, review past runs, repeat the same settings, download results, and import personal execution records.
 
-**实现：**Python、Streamlit、Plotly；内部研究接口使用 FastAPI。看板默认为英语，可切换中文。SQLite 保存研究任务；独立串行工作者执行长任务，页面关闭不会丢失任务。
+**Implementation:** Python, Streamlit, and Plotly; the internal research API uses FastAPI. The dashboard defaults to English and can switch to Chinese. SQLite stores research jobs, while a separate serial worker runs long tasks so closing the page does not discard a job.
 
-**数据：**本机输入和上传文件、实验结果目录、任务数据库；接口没有自己的市场行情。
+**Data:** Local input and uploaded files, experiment result folders, and the job database. The API does not provide market data of its own.
 
-**当前限制：**任务状态和结果在本机保存，多个主机之间没有共享任务队列；上传的成交只能说明实际发生的成交，不能还原未成交委托或下单意图。
+**Current limitations:** Jobs and results are stored locally, with no shared queue across hosts. Imported fills show what actually executed but cannot reconstruct unfilled orders or the original order intent.
 
-**后续扩展：**增加原始委托、撤单及部分成交导入，并把实际计划与优化方案按相同约束比较；再验证多用户服务和集中式任务队列。
+**Possible extensions:** Import original orders, cancellations, and partial fills, then compare the actual plan with an optimized one under matching constraints. Validate a multi-user service and centralized task queue afterward.
 
-### 市场数据接入和盘口重建
+### Market data ingestion and order-book reconstruction
 
-**功能：**获取或导入市场档案，校验时间、更新顺序和档案完整性，再生成历史盘口视图。
+**Purpose:** Acquire or import market archives, validate timestamps, update sequence, and archive completeness, then build historical order-book views.
 
-**实现：**Bybit 快照/增量状态机维护价格档位；检查更新编号、交叉盘口和断档。OKX 解压官方历史档案并规范为统一的盘口结构。内部以 Parquet 保存整理后的观测，并为大文件设容量上限。
+**Implementation:** A Bybit snapshot/delta state machine maintains price levels and checks update identifiers, crossed books, and gaps. The OKX adapter extracts official historical archives and normalizes them to a shared book format. Processed observations are stored internally as Parquet, with a configured cap for large files.
 
-**数据：**Bybit ETHUSDC 现货历史档案来自 [Bybit 历史订单簿目录](https://quote-saver.bycsi.com/orderbook/spot/ETHUSDC/)；OKX ETH-USDC 历史 L2 需要用户从 [OKX 历史数据页面](https://www.okx.com/en-us/historical-data) 下载并在看板上传。已有研究窗口为 2026-09-01 至 2026-09-07 UTC，这些市场文件不包含在源代码发布包中。
+**Data:** Bybit ETHUSDC spot archives from the [Bybit historical order-book directory](https://quote-saver.bycsi.com/orderbook/spot/ETHUSDC/). For OKX ETH-USDC historical L2, users download an archive from the [OKX historical data page](https://www.okx.com/en-us/historical-data) and upload it in the dashboard. Existing research windows cover 2026-09-01 through 2026-09-07 UTC; these market files are not included in the source package.
 
-**当前限制：**策略使用按价格档位汇总的 L2 数据，不知道交易所在同一档位中每笔委托的排队位置，也不模拟自身订单对市场的冲击。OKX 数据取决于用户提供的历史档案。
+**Current limitations:** Strategies use price-level aggregated L2 data. They do not know each order's queue position at a price level or model the impact of the simulated order on the market. OKX historical coverage depends on the archive supplied by the user.
 
-**后续扩展：**增加经验证的更多交易所历史 L2 适配器，保留原始数据版本和时钟语义，并在可获得更细数据时校准队列模型。
+**Possible extensions:** Add validated historical L2 adapters for more venues, preserve raw-data versions and clock semantics, and calibrate queue models when finer-grained data is available.
 
-### Binance 行情参照和跨所比较
+### Binance market reference and cross-venue comparison
 
-**功能：**将同一历史窗口的 Bybit 与 OKX 盘口按可用时间对齐，计算双向主动成交成本；Binance 成交价可用作额外价格参照。
+**Purpose:** Align Bybit and OKX books over the same historical window and compare aggressive execution costs in both directions; Binance trade prices can serve as an additional reference.
 
-**实现：**按事件时间和假设延迟做因果对齐，使用统一的逐档撮合计算比较结果，并分别扣除场所手续费。
+**Implementation:** Causal alignment uses event time and assumed latency. A shared level-by-level matching calculation compares venues and applies each venue's fees separately.
 
-**数据：**Binance ETHUSDC 日级逐笔成交 ZIP 来自 [Binance Vision 现货成交归档](https://data.binance.vision/data/spot/daily/trades/ETHUSDC)。实时深度验证使用 Binance 公共 REST/WebSocket 接口。历史价格参照不等同于 Binance 历史盘口。
+**Data:** Daily Binance ETHUSDC trade ZIP archives from [Binance Vision spot trades](https://data.binance.vision/data/spot/daily/trades/ETHUSDC). Real-time depth checks use Binance public REST/WebSocket endpoints. Historical trade-price references are not historical Binance order books.
 
-**当前限制：**已验证的 Binance 数据适配器提供成交档案，不提供用于历史深度撮合的 L2 档案。因此 Binance 不能参与当前静态可执行路由。跨所快照价差也不代表可实现的套利利润；资金须预先分布在各场所。
+**Current limitations:** The validated Binance adapter provides trade archives, not historical L2 depth suitable for execution simulation. Binance therefore cannot participate in current static executable routing. A quoted cross-venue spread is not guaranteed arbitrage profit; funds must already be available at each venue.
 
-**后续扩展：**取得并校验 Binance 同期历史 L2 后，才将它加入盘口成交和静态路由；后续单独纳入资金划转时间、费率和风险。
+**Possible extensions:** Add Binance to executable book comparison and static routing only after obtaining and validating contemporaneous historical L2. Model transfer time, fees, and risks separately afterward.
 
-### 成交成本和静态场所分配
+### Execution costs and static venue allocation
 
-**功能：**计算买入吃卖盘或卖出吃买盘的档位成本；在多个已有盘口间分配一笔主动订单。
+**Purpose:** Calculate level-by-level costs for buying from asks or selling into bids, and allocate one aggressive order across available venue books.
 
-**实现：**Decimal 精度逐档撮合；静态路由按含费后的边际价格排序，在各场所分别受余额和可见深度约束。在线性费率及独立价格档位假设下，该分配对输入的盘口是精确的。
+**Implementation:** Decimal-precision matching. Static routing sorts fee-adjusted marginal prices and constrains each venue by its balance and visible depth. Under linear fee rates and independent price-level assumptions, the allocation is exact for the supplied books.
 
-**数据：**历史 Bybit/OKX L2、用户输入数量或预算、手续费、延迟和场所余额。
+**Data:** Historical Bybit/OKX L2, user-entered size or budget, fees, latency, and balances at each venue.
 
-**当前限制：**静态路由只分配到 Bybit 和 OKX；不包含 Uniswap、跨场所转账、市场冲击或被动挂单成交概率。盘口可见数量不保证自身订单实际全部成交。
+**Current limitations:** Static routing covers Bybit and OKX only. It excludes Uniswap, inter-venue transfers, market impact, and passive-order fill probability. Visible book depth does not guarantee that the full order will execute.
 
-**后续扩展：**将可验证的 DEX 路径、gas、ETH/WETH 包装和资金资产约束纳入同一个优化模型；每条路径缺少成本或余额时拒绝该路径。
+**Possible extensions:** Add verifiable DEX paths, gas, ETH/WETH wrapping, and asset-balance constraints to a common optimizer. Reject a path whenever required cost or balance information is missing.
 
-### MPC 动态执行和被动限价
+### MPC dynamic execution and passive limits
 
-**功能：**在执行期限内比较立即成交、分批买卖和等待；Bybit 限价模块还会比较有限的一组挂单、撤改和余量主动成交方案。
+**Purpose:** Compare immediate execution, slicing, and waiting within an execution deadline. The Bybit limit module also evaluates a finite set of placement, cancel/replace, and remainder-taking scenarios.
 
-**实现：**MPC（模型预测控制）每个时点规划剩余执行步骤，只执行当前一步，再基于当时可用的信息重新规划。S3 在预先声明的有限候选集内搜索；被动成交用保守、中间和乐观三种队列假设回放撤单确认和补单过程。
+**Implementation:** Model Predictive Control (MPC) plans the remaining steps at each point, executes only the current step, and replans using information available at that time. S3 searches a declared finite candidate set. Passive fills are replayed under conservative, middle, and optimistic queue assumptions, including cancellation confirmation and remainder handling.
 
-**数据：**Bybit ETHUSDC L2 与逐笔成交、同一窗口历史价格、假设费用、延迟、资金和订单期限。
+**Data:** Bybit ETHUSDC L2 and trades, historical prices from the same window, assumed fees, latency, balances, and order deadline.
 
-**当前限制：**MPC 仅用于单场所 Bybit；未来盘口深度采用近似。L2 不显示队列顺序，所以限价模块给出情景范围而非校准后的成交概率。预测偏差可能令方案差于同约束的尽早成交基线。
+**Current limitations:** MPC currently covers Bybit alone, and future book depth is approximated. L2 does not reveal queue order, so the limit module returns scenario ranges rather than calibrated fill probabilities. Forecast error can make a plan worse than an immediate-execution baseline under the same constraints.
 
-**后续扩展：**接入更多交易所的盘口和独立余额状态，构建跨场所动态 MPC；只有取得可靠的排队标签后，才报告被动单成交概率。
+**Possible extensions:** Add other venues' books and independent balance states for cross-venue dynamic MPC. Report passive fill probabilities only after reliable queue labels are available.
 
-### 机器学习
+### Machine learning
 
-**功能：**辅助估计短期执行价格变化、盘口成交成本和波动风险，为 MPC 的未来成本估计提供输入。
+**Purpose:** Estimate short-term execution-price changes, book execution costs, and volatility risk as inputs to MPC's future-cost estimates.
 
-**实现：**Python、scikit-learn；在 Ridge、直方图梯度提升树和近期行情基线之间按时间验证集误差选择。特征从当前及过去的盘口、成交和价格构造；训练、验证和封存测试按时间隔开，预测受适用的方向、规模和期限约束。
+**Implementation:** Python and scikit-learn. Ridge, histogram gradient-boosted trees, and recent-market baselines are compared using time-ordered validation error. Features are constructed from current and past books, trades, and prices. Training, validation, and a sealed test are separated in time; predictions are checked against their supported side, size, and horizon.
 
-**数据：**当前冻结研究以 Bybit ETHUSDC 历史盘口和成交窗口为主；源代码发布包不附带本地历史档案或训练权重。
+**Data:** The current frozen study is mainly based on Bybit ETHUSDC historical order-book and trade windows. Local archives and trained weights are not included in the source package.
 
-**当前限制：**样本涵盖的日期、场所和市场状态有限。既有封存验收中，价格不利变化模型没有优于简单基线；波动任务也可能退回基线。模型输出不能解释为交易方向或收益保证。
+**Current limitations:** The sample covers a limited number of dates, venues, and market conditions. In the existing sealed evaluation, the adverse-price-change model did not outperform a simple baseline; the volatility task may also fall back to a baseline. Predictions are not trading direction or a guarantee of returns.
 
-**后续扩展：**用多个市场状态与新留出日期评估泛化，加入分位数风险估计和成交概率标签；训练集、模型适用边界和封存日期继续分开登记。
+**Possible extensions:** Evaluate generalization across more market conditions and held-out dates, add quantile-risk estimates and fill-probability labels, and keep recording training data, model applicability, and sealed test dates separately.
 
-### Uniswap V3 和链上成本
+### Uniswap V3 and on-chain costs
 
-**功能：**在固定历史区块读取池状态和兑换报价，将买入/卖出池报价、交易所盘口、池手续费和估算 gas 放在一个单笔成本表中。
+**Purpose:** Read a pool state at a fixed historical block and obtain a swap quote, then compare a WETH/USDC pool quote with exchange books, pool fees, and estimated gas in a single-order cost view.
 
-**实现：**Python、Web3.py 和以太坊只读 `eth_call`；比较时固定区块、保留区块 hash，并给出 WETH/USDC 结算和 gas 假设。池报价已含兑换手续费，报告不会重复扣一次。
+**Implementation:** Python, Web3.py, and read-only Ethereum `eth_call`. The comparison fixes a block, records its hash, and states WETH/USDC settlement and gas assumptions. Pool quotes already include the swap fee, so the report does not deduct it a second time.
 
-**数据：**以太坊主网 Uniswap V3 ETH/USDC 池（资产实际为 WETH/USDC）。历史状态和 Quoter 查询使用项目默认的公共 RPC `https://eth.drpc.org`；也可通过本机环境变量 `ETH_RPC_URL` 指定节点。
+**Data:** The Ethereum mainnet Uniswap V3 ETH/USDC pool (the assets are WETH/USDC). Historical state and Quoter calls use the default public RPC `https://eth.drpc.org`; a local node can be selected with the `ETH_RPC_URL` environment variable.
 
-**当前限制：**报价比较不是跨场所联合最优路由；当前不含授权、包装/解包、失败交易费、交易排序影响或原子成交。逐笔 Swap/Mint/Burn 下载接口已写，但所验证的公共节点不能提供该窗口的历史事件日志；完整 tick 状态也未重建。每笔链上事件只有区块时间及块内先后顺序，不能虚构毫秒时间戳。
+**Current limitations:** A quote comparison is not a jointly optimized cross-venue route. The current model excludes approvals, wrapping/unwrapping, failed-transaction fees, transaction ordering, and atomic execution. A historical Swap/Mint/Burn log downloader exists, but the public node tested could not serve historical event logs for the target window; the full tick state has not been reconstructed. Each on-chain event has a block timestamp and an order within the block, but no independently observed millisecond timestamp.
 
-**后续扩展：**使用支持归档事件查询的 RPC 或可校验的事件文件，恢复完整起始 tick/流动性状态，再构建逐事件重放。随后加入真实 gas 区间、包装成本和非原子成交敞口。
+**Possible extensions:** Use an archive RPC that supports historical event queries or verifiable event files, restore the complete initial tick/liquidity state, and replay events individually. Then include realistic gas ranges, wrapping costs, and non-atomic execution exposure.
 
-### LP、账本、风控和订单流
+### LP analysis, ledger, risk, and order flow
 
-**功能：**从池状态分析 LP 资产变化和手续费，汇总主动买卖成交；按成交更新纸面余额，单独核对费用和资金流。
+**Purpose:** Analyze LP asset changes and fees from pool states, summarize aggressive buy/sell flow, update paper balances after simulated fills, and independently reconcile fees and cash flows.
 
-**实现：**V3 多区间 tick 数学、feeGrowth 归因、历史基准对比，以及独立账本与对账计算。看板显示价格走势、成交量、订单流差及报告。
+**Implementation:** Uniswap V3 multi-range tick math, fee-growth attribution, historical benchmark comparison, and independent ledger/reconciliation calculations. The dashboard displays price history, trade volume, order-flow imbalance, and reports.
 
-**数据：**本机 Uniswap V3 历史池状态、Bybit 逐笔成交和盘口重建结果。
+**Data:** Local Uniswap V3 historical pool states, Bybit public trades, and reconstructed order books.
 
-**当前限制：**池数据历史样本较稀，LP 结果是小额假设仓位的历史估算；忽略模拟资金对池子的影响，不代表实际钱包收益。纸面账本也不是交易所账户流水。
+**Current limitations:** Pool history is sparse, and LP results are historical estimates for a small hypothetical position. They ignore the effect of simulated capital on the pool and do not represent actual wallet returns. The paper ledger is not an exchange account statement.
 
-**后续扩展：**按需接入更细的池事件、真实账户成交/手续费对账和更长时间范围，并报告库存、未完成订单及不同资产间的风险。
+**Possible extensions:** Add finer pool events when needed, reconcile real account fills and fees, extend the historical period, and report inventory, unfinished orders, and risks across assets.
 
-### 实验记录和稳定性
+### Experiment records and resilience
 
-**功能：**保留参数、模型/代码版本摘要、结果、失败原因和运行资源；为长任务提供排队、取消和进程重启后的中断恢复。
+**Purpose:** Keep parameters, model/code version summaries, results, failure reasons, and runtime resources. Long tasks can be queued or cancelled and can recover from an interrupted process.
 
-**实现：**SQLite 持久任务队列、PostgreSQL 或 SQLite 运行缓存、Parquet 历史文件、JSON 报告和结构化日志。项目在 2026-10-06 的单场所只读影子运行中记录了 236 个样本；受控断开后观察到行情重连和采集进程重启恢复。此结果不等于全组件压力测试。
+**Implementation:** Persistent SQLite job queue, PostgreSQL or SQLite runtime cache, Parquet history files, JSON reports, and structured logs. A read-only single-venue shadow run on 2026-10-06 recorded 236 samples; after a controlled disconnect, market reconnection and collector restart recovery were observed. This does not count as a full-component stress test.
 
-**数据：**公开行情心跳、任务状态、本机磁盘/内存统计及不可变实验目录。
+**Data:** Public market heartbeats, job state, local disk/memory metrics, and immutable experiment directories.
 
-**当前限制：**服务定位于本机研究；没有跨主机队列和完整生产部署。单小时影子验收仅覆盖 Bybit 行情与 Uniswap 报价读取，不发送真实订单。
+**Current limitations:** The service is intended for local research, with no cross-host queue or full production deployment. The one-hour shadow check covered only Bybit market data and Uniswap quote reads, and submitted no live orders.
 
-**后续扩展：**为支持的场所建立组合故障测试，完善多用户部署、自动化构建和长期资源告警。
+**Possible extensions:** Build combined failure tests for supported venues, improve multi-user deployment, and add automated build and long-term resource alerts.
 
-## 数据来源和覆盖范围
+## Data sources and coverage
 
-| 市场 | 本项目读取的数据 | 可用于 | 不能据此做什么 |
+| Market | Data read by this project | Suitable for | Not sufficient for |
 |---|---|---|---|
-| Bybit ETHUSDC 现货 | 历史盘口档案、公共成交及实时只读盘口 | 历史盘口重建、逐档主动成本、MPC/S3 回放 | 不能查看每张委托和真实队列位置 |
-| OKX ETH-USDC 现货 | 用户上传并验证的历史 L2 档案；公开行情检查 | 与 Bybit 同窗静态成本比较 | 缺少对应日期档案时，不能虚构盘口 |
-| Binance ETHUSDC 现货 | 官方日级逐笔成交；公共实时深度接口 | 成交价格参照、实时连接检查 | 目前不能用历史 L2 做可执行成本路由 |
-| Ethereum 主网 Uniswap V3 WETH/USDC | 固定历史区块的池状态与 Quoter 报价；历史日志能力依 RPC 而定 | 单笔含 gas 的历史报价对比和有限 LP 历史分析 | 不能把报价当成交，也不能假设无包装成本的 ETH/WETH 可互换 |
+| Bybit ETHUSDC spot | Historical book archives, public trades, and read-only real-time book | Historical book reconstruction, level-by-level aggressive cost, MPC/S3 replay | Inspecting every individual order or its true queue position |
+| OKX ETH-USDC spot | User-uploaded and validated historical L2 archives; public market checks | Same-window static cost comparison with Bybit | Inventing a book when an archive for the date is unavailable |
+| Binance ETHUSDC spot | Official daily trade archives; public real-time depth endpoint | Trade-price reference and real-time connectivity checks | Executable historical cost routing using historical L2 today |
+| Ethereum mainnet Uniswap V3 WETH/USDC | Pool state and Quoter at fixed historical blocks; historical log access depends on RPC | Single-swap historical quote comparison including assumed gas, and limited LP history analysis | Treating a quote as an execution or assuming ETH/WETH are interchangeable without wrapping cost |
 
-原始市场数据、训练文件、生成的模型和运行报告保存在本机 `data/` 下，不随源代码包发布。项目总研究数据写入预算为 5 GB。第一次运行时，看板可探测或下载可用的 Bybit 日档；OKX 历史文件由使用者从官方页面取得并上传。任何日期是否可用取决于来源实际提供的数据。
+Raw market data, training files, generated models, and runtime reports stay in local `data/` and are not part of the source package. The project's total research-data write budget is 5 GB. On first use, the dashboard can probe or download available Bybit daily archives. Users obtain OKX historical files from the official page and upload them. Date availability depends on what each source actually provides.
 
-## 安装
+## Installation
 
-本机看板面向 Windows 和 Python 3.14。首次运行可用 SQLite，无需配置账户或安装 PostgreSQL：
+The local dashboard targets Windows and Python 3.14. SQLite works for the first run; no account or PostgreSQL setup is required:
 
 ```powershell
-# 先进入解压后的项目目录
+# First, change to the extracted project directory
 $projectPath = Read-Host 'Project folder path'
 Set-Location -LiteralPath $projectPath
 
@@ -163,43 +165,43 @@ $env:DATABASE_URL = "sqlite:///$databasePath"
 .\start_local.ps1
 ```
 
-启动后打开 [http://127.0.0.1:8502](http://127.0.0.1:8502)。服务 API 文档位于 [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs)；正常研究操作在看板内完成。PowerShell 环境变量仅对当前终端会话有效。项目也支持通过 `DATABASE_URL` 接入 PostgreSQL；请在本机安全配置数据库地址，不要把密码提交到仓库。
+After startup, open [http://127.0.0.1:8502](http://127.0.0.1:8502). API documentation is available at [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs); normal research workflows are completed in the dashboard. The PowerShell environment variable applies only to the current terminal session. PostgreSQL can also be configured through `DATABASE_URL`; set database credentials securely on the local machine and do not commit them.
 
-## 使用示例
+## Example workflow
 
-1. 打开“执行研究工作台”，点击查找最新可用的 Bybit 日期，选择一个已经完成归档的时刻。
-2. 选择买入或卖出，输入 ETH 数量或买入 USDC 预算，再填写费率、延迟、期限和可用余额。
-3. 提交后查看订单档位、平均成交价、手续费、净支出/收入、完成量及分批方案，并下载本次报告。
-4. 若要比较 Bybit 与 OKX，在“跨所数据与套利”选择同一日期；缺少 OKX 档案时，先从官方历史数据页下载后回到此页上传。
-5. 若要评估 Uniswap，将其作为 WETH 结算的池报价比较，明确填写 gas 用量及优先费，并与同一时刻可用的交易所盘口对照。
-6. 如有自己的真实成交，可导入 CSV、映射列并设定没有时区标记的时间所采用的时区。当前导入报告是成交资金流复盘，尚不能代替原始订单及未成交量分析。
+1. Open **Execution Research Workbench**, find the latest available Bybit date, and select a timestamp with a completed archive.
+2. Choose buy or sell, enter an ETH quantity or USDC budget, and set fees, latency, deadline, and available balances.
+3. Submit the run and review book levels, average execution price, fees, net spend or proceeds, completion, and sliced-order scenarios. Download the report when ready.
+4. To compare Bybit with OKX, select the same date in **Cross-Venue Data & Arbitrage**. If the OKX archive is missing, download it from the official historical-data page and upload it there.
+5. To assess Uniswap, compare a WETH-settled pool quote and state the gas limit and priority fee. Compare it with an exchange book available at the same time.
+6. If you have actual fills, import a CSV, map its columns, and specify the timezone for timestamps without timezone information. The current import reports fill cash flows; it does not replace analysis of original orders and unfilled quantity.
 
-盘口、费用和延迟都是模型输入。请检查报告中的数据时间、可见深度、订单完成比例和场所资金假设，再解释成本数字。
+Book depth, fees, and latency are model inputs. Check the report's data time, visible depth, completion ratio, and venue balance assumptions before interpreting cost figures.
 
-## 当前进度与下一步
+## Current progress and next steps
 
-截至 2026-10-12，项目已实现参数化 CEX 主动订单、Bybit MPC、Bybit 限价队列情景、Bybit/OKX 静态分配、条件机器学习、历史成交导入、Uniswap 固定区块报价、LP 分析、统一后台任务及双语看板。已有组件测试和短时只读连接恢复检查；后者只覆盖有限场所与场景，不代表全面生产稳定性。
+As of 2026-10-12, the project supports parameterized aggressive CEX orders, Bybit MPC, Bybit passive-limit queue scenarios, Bybit/OKX static allocation, conditional machine learning, historical fill imports, Uniswap fixed-block quotes, LP analysis, a unified background job service, and a bilingual dashboard. Component tests and a short read-only connection-recovery check have been run. The latter covered only a limited set of venues and conditions and does not establish production reliability.
 
-整体 P5 仍在推进：历史池事件下载和完整 tick 重建、Binance 可执行历史 L2、CEX/DEX 联合静态路由、跨所动态 MPC、可信被动成交概率、原始委托与成交的同约束归因仍待完成。项目目前用于研究和历史执行模拟；不应将有限历史样本理解为已验证的实盘策略。公开源码不包含本机运行日志、数据、数据库或运行状态文件。
+Overall, P5 is still in progress. Historical pool-event download and full tick reconstruction, executable Binance historical L2, joint CEX/DEX static routing, cross-venue dynamic MPC, reliable passive-fill probabilities, and attribution using original orders and trades under matching constraints remain incomplete. The project is for research and historical execution simulation; limited historical samples should not be read as proof of a live strategy. Public source code excludes local runtime logs, data, databases, and status files.
 
-## 工程阅读入口
+## Engineering references
 
-- [按流水线阅读各组件及源码坐标](docs/COMPONENT_GUIDE.md)
-- [Python 函数、类和中文说明索引](docs/CODE_MAP.md)
-- [当前支持范围与不足](README.md#当前进度与下一步)
+- [Pipeline component guide and source locations](docs/COMPONENT_GUIDE.md)
+- [Python functions, classes, and Chinese comment index](docs/CODE_MAP.md)
+- [Supported scope and limitations](README.md#current-progress-and-next-steps)
 
-## 开发与贡献
+## Development and contribution
 
-改动前请先阅读对应组件的功能说明、时间语义和费用单位。新增来源或策略时，应记录数据来源、可见时点、适用规模、费用假设和无法模拟的部分；不能把盘口触价当成已成交，也不能用未来行情选择历史动作。
+Before changing a component, review its purpose, time semantics, and fee units. When adding a data source or strategy, record its source, information availability time, supported size, fee assumptions, and what it cannot simulate. A book being touched does not mean an order filled, and future prices must not be used to select historical actions.
 
-提交修改前可在 Windows 项目虚拟环境运行：
+Before submitting a change, run the following in the Windows project virtual environment:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:tmpdir -p no:cacheprovider -p tests.pytest_workspace_tmp
 ```
 
-提交建议附上改动目的、适用市场/窗口、运行命令和结果边界。大型历史档案、私钥、`.env`、`.runtime`、SQLite/PostgreSQL 数据库和运行生成文件不得加入提交。
+Include the change's purpose, supported market/window, command used, and result limitations. Large historical archives, private keys, `.env`, `.runtime`, SQLite/PostgreSQL databases, and generated runtime files must not be committed.
 
-## 许可证
+## License
 
-项目按目标仓库现有的 [MIT License](LICENSE) 发布。使用、修改和再发布时请保留许可证文本与版权声明。
+This project is distributed under the target repository's existing [MIT License](LICENSE). Keep the license text and copyright notice when using, modifying, or redistributing it.
